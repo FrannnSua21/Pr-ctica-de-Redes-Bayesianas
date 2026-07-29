@@ -1,0 +1,62 @@
+import warnings
+warnings.filterwarnings("ignore")
+
+import pandas as pd
+from pgmpy.base import DAG
+from pgmpy.estimators import PC, HillClimbSearch, BIC, AIC, BDeu
+
+data = pd.DataFrame({
+    "x1": [0, 0, 1, 1, 1, 0, 0, 1],
+    "x2": [0, 0, 0, 1, 1, 1, 0, 1],
+    "x3": [1, 1, 1, 0, 0, 1, 1, 0],
+    "Y":  [1, 1, 1, 0, 0, 0, 1, 0]
+})
+
+print("Dataset")
+print(data)
+print()
+
+manual_model = DAG()
+manual_model.add_nodes_from(["x1", "x2", "x3", "Y"])
+manual_model.add_edges_from([("x1", "x3"), ("x2", "x3"), ("x3", "Y")])
+
+pc = PC(data)
+pc_model = pc.estimate(variant="stable", ci_test="chi_square", significance_level=0.05, show_progress=False)
+
+hc = HillClimbSearch(data)
+hc_scorer = BIC(data)
+hc_model = hc.estimate(scoring_method=hc_scorer, show_progress=False)
+
+bic = BIC(data)
+aic = AIC(data)
+bdeu = BDeu(data, equivalent_sample_size=1)
+
+modelos = {
+    "Manual": manual_model,
+    "PC": pc_model,
+    "Hill Climbing": hc_model
+}
+
+resultados = []
+for nombre, modelo in modelos.items():
+    fila = {
+        "modelo": nombre,
+        "aristas": list(modelo.edges()),
+        "BIC": bic.score(modelo),
+        "AIC": aic.score(modelo),
+        "BDeu": bdeu.score(modelo)
+    }
+    resultados.append(fila)
+
+print("Resultados")
+for fila in resultados:
+    print(fila["modelo"])
+    print("  aristas:", fila["aristas"])
+    print("  BIC:", round(fila["BIC"], 4))
+    print("  AIC:", round(fila["AIC"], 4))
+    print("  BDeu:", round(fila["BDeu"], 4))
+    print()
+
+tabla = pd.DataFrame(resultados)
+tabla.to_csv("resultados_scores.csv", index=False)
+print(tabla)
